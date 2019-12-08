@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Welcome to Firebase Hosting</title>
+    <title>PayPro</title>
 
     <!-- update the version number as needed -->
     <script defer src="/__/firebase/7.5.2/firebase-app.js"></script>
@@ -13,40 +13,130 @@
     <!-- initialize the SDK after all desired features are loaded -->
     <script defer src="/__/firebase/init.js"></script>
     <link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css">
-    <script type="text/javascript" src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+    <link rel="stylesheet" type="text/css" href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
     <script src="https://code.jquery.com/jquery-3.4.1.js" integrity="sha256-WpOohJOqMqqyKL9FccASB9O0KwACQJpFTUBLTYOVvVU=" crossorigin="anonymous"></script>
+    <script type="text/javascript" src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
   </head>
   <body>
-    <div id="payments">
+    <div class="jumbotron mb-0">
+      <div class="container">
+        <div><span class="display-3" id="balance">Rs.0</span></div>
+        <p class="lead" id="upi_id">user@bank.com</p>
+        <button class="btn btn-info" data-toggle="modal" data-target="#addBalanceModal">Add Balance</button>
+        <button class="btn btn-info">Make Payment</button>
+      </div>
     </div>
+    <table class="table">
+    <thead class="thead-dark">
+      <tr>
+        <th scope="col">No</th>
+        <th scope="col">Payer</th>
+        <th scope="col">Payee</th>
+        <th scope="col">Amount</th>
+        <th scope="col">Priority</th>
+        <th scope="col">Paid </th>
+      </tr>
+    </thead>
+    <tbody id="payments">
+    </tbody>
+  </table>
+    <div class="modal fade" id="addBalanceModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel"
+      aria-hidden="true">
+      <div class="modal-dialog" role="document">
+        <div class="modal-content">
+          <div class="modal-header text-center">
+            <h4 class="modal-title w-100 font-weight-bold">Add Balance</h4>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body mx-3">
+            <div class="md-form mb-4">
+              <input type="text" id="add-amount" class="form-control" placeholder="Enter Amount">
+            </div>
 
+          </div>
+          <div class="modal-footer d-flex justify-content-center">
+            <button class="btn btn-info" id="balance-submit">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <script>
       document.addEventListener('DOMContentLoaded', function() {
-
-
-        function addToTable(data){
-
+        function getUrlVars() {
+            var vars = {};
+            var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m,key,value) {
+                vars[key] = value;
+            });
+            return vars;
         }
         
-        firebase.firestore().collection('payments').orderBy('timestamp','desc').onSnapshot(function(doc) {
+        var user;
+        
+        function addToTable(data){
+          if(data.isPaid){
+            $('#payments').append(`<tr>
+                <th scope="row">${data.no}</th>
+                <td>${data.from}</td>
+                <td>${data.to}</td>
+                <td>${data.amount}</td>
+                <td>${data.priority}</td>
+                <td><i class="fa fa-check text-success"></i></td>
+              </tr>
+              `
+            )
+          }
+          else{
+            $('#payments').append(`<tr>
+                <th scope="row">${data.no}</th>
+                <td>${data.from}</td>
+                <td>${data.to}</td>
+                <td>${data.amount}</td>
+                <td>${data.priority}</td>
+                <td><i class="fa fa-times text-danger"></i></td>
+              </tr>
+              `
+            )
+          }
+        }
+
+        firebase.firestore().collection('users').where('phone','==',getUrlVars()["user"]).onSnapshot(function(doc) {
             doc.forEach(snap => {
-              console.log(snap.data())
+              data = snap.data()
+              user = data.phone
+              $('#balance').html(`Rs.${data.balance}`)
+              $('#upi_id').html(`${data.upiId}`)
             })
         });
-        // var query = firebase.firestore()
-        //           .collection('payments')
-        //           .orderBy('timestamp', 'desc')
-        // // Start listening to the query.
-        // query.onSnapshot(function(snapshot) {
-        //   snapshot.docChanges().forEach(function(change) {
-        //     if (change.type === 'removed') {
-        //       deleteMessage(change.doc.id);
-        //     } else {
-        //       var message = change.doc.data();
-        //       console.log(message)
-        //     }
-        //   });
-        // });
+        
+        firebase.firestore().collection('payments').orderBy('timestamp','desc').onSnapshot(function(doc) {
+            $('#payments').html('')
+            var i = 1
+            doc.forEach(snap => {
+              data = snap.data()
+              data.no = i
+              addToTable(data)
+              i++;
+            })
+        });
+        
+        $("#balance-submit").onclick(function(e){
+          e.preventDefault();
+          $.ajax({
+              url: 'https://us-central1-paypro-9b764.cloudfunctions.net/addBalance',
+              type: 'post',
+              contentType: 'application/json',
+              data: {phone: user, amount: $("#add-amount").val()},
+              success: function( data,){
+                  $("#addBalanceModal").modal("hide");
+              },
+              error: function(err){
+                  $("#addBalanceModal").modal("hide");
+              }
+          });
+
+        })
         
       });
     </script>

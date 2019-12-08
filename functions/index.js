@@ -99,27 +99,28 @@ exports.initTransactionsOnBalanceAdded = functions.firestore
     .onUpdate(async (snap, context) => {
     	const data = snap.after.data();
       	const previousData = snap.before.data();
-      	let cur_balance = data.balance
-      	let isPayable = true
-      	if(cur_balance > previousData.balance){
-      		await admin.firestore().collection('payments').where('from','==',data.phone).where('isPaid','==',false).orderBy('priority','asc').orderBy('amount','desc').orderBy('timestamp','desc').get()
+      	if(data.balance> previousData.balance){
+      		let cur_balance = data.balance
+      		await admin.firestore().collection('payments').where('from','==',data.phone).where('isPaid','==',false).orderBy('priority','asc').orderBy('amount','desc').orderBy('timestamp','asc').get()	
 			.then(querySnapshot => {
 				querySnapshot.forEach(async documentSnapshot => {
 					let pdata = documentSnapshot.data()
-					if(cur_balance >= pdata.amount){
-						await admin.firestore().collection('users').doc(snap.after.id).set({balance:(cur_balance - pdata.amount)},{merge: true})
+					if((cur_balance - pdata.amount) >= 0){
+						console.log(cur_balance)
+						cur_balance = cur_balance - pdata.amount
+						await admin.firestore().collection('payments').doc(documentSnapshot.id).set({isPaid: true},{merge: true})
+						await admin.firestore().collection('users').doc(snap.after.id).set({balance:cur_balance},{merge: true})
 						await admin.firestore().collection('users').where('phone','==',pdata.to).get()
 						.then(querySnapshot => {
 							querySnapshot.forEach(async doc => {
 								balance = doc.data().balance
-								await admin.firestore().collection('users').doc(doc.id).set({balance:(balance + pdata.amount)},{merge: true})
+								admin.firestore().collection('users').doc(doc.id).set({balance:(balance + pdata.amount)},{merge: true})
 							})
 							return true
 						})
 						.catch((error)=>{
 							console.log(error)
 						})
-						await admin.firestore().collection('payments').doc(documentSnapshot.id).set({isPaid: true},{merge: true})
 					}
 				});
 				return true
